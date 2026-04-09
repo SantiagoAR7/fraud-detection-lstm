@@ -1,0 +1,37 @@
+services:
+  airflow-webserver:
+    image: apache/airflow:2.8.1-python3.9
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__SECRET_KEY=fraud_detection_secret
+      - _AIRFLOW_DB_MIGRATE=true
+      - _AIRFLOW_WWW_USER_CREATE=true
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin123
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+      - airflow_db:/opt/airflow
+    ports:
+      - "8080:8080"
+    command: bash -c "pip install torch==2.0.1 --quiet && airflow webserver"
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.1-python3.9
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__SECRET_KEY=fraud_detection_secret
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+      - airflow_db:/opt/airflow
+    command: bash -c "pip install torch==2.0.1 joblib scikit-learn --quiet && airflow scheduler"
+    depends_on:
+      - airflow-webserver
+
+volumes:
+  airflow_db:

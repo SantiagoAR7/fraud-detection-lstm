@@ -1,0 +1,5 @@
+[2026-04-09T08:36:35.865-0500] {manager.py:469} INFO - Processing files using up to 1 processes at a time 
+[2026-04-09T08:36:35.865-0500] {manager.py:470} INFO - Process each file at most once every 30 seconds
+[2026-04-09T08:36:35.866-0500] {manager.py:471} INFO - Checking for new files in /Users/macdesanti/Desktop/Proyecto Personal/fraud-detection-lstm/airflow/dags every 300 seconds
+[2026-04-09T08:36:35.866-0500] {manager.py:738} INFO - Searching for files in /Users/macdesanti/Desktop/Proyecto Personal/fraud-detection-lstm/airflow/dags
+[2026-04-09T08:36:35.877-0500] {manager.py:741} INFO - There are 48 files in /Users/macdesanti/Desktop/Proyecto Personal/fraud-detection-lstm/airflow/dags
