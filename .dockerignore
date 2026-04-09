@@ -1,0 +1,8 @@
+venv_fraud/
+__pycache__/
+*.pyc
+.DS_Store
+mlruns/
+notebooks/
+.git/
+data/*.csv
