@@ -1,14 +1,25 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import Counter, Histogram, Gauge
 import torch
 import torch.nn as nn
 import numpy as np
 import joblib
 import os
+import time
 
 app = FastAPI(title="Fraud Detection API", version="1.0")
 
-# ── Arquitectura del modelo (debe coincidir con el entrenamiento) ──
+# ── Métricas Prometheus ──
+fraud_counter = Counter('fraud_detections_total', 'Total de transacciones detectadas como fraude')
+normal_counter = Counter('normal_transactions_total', 'Total de transacciones normales')
+reconstruction_error_gauge = Gauge('reconstruction_error_last', 'Último error de reconstrucción')
+prediction_latency = Histogram('prediction_latency_seconds', 'Latencia de predicción en segundos')
+
+Instrumentator().instrument(app).expose(app)
+
+# ── Arquitectura del modelo ──
 class FraudAutoencoder(nn.Module):
     def __init__(self, input_dim=30):
         super().__init__()
@@ -62,6 +73,7 @@ def root():
 
 @app.post("/predecir")
 def predecir(transaction: TransactionData):
+    start = time.time()
     data = transaction.dict()
 
     # Escalar Amount y Time
@@ -82,6 +94,14 @@ def predecir(transaction: TransactionData):
 
     reconstruction_error = float(np.mean((X - X_reconstructed) ** 2))
     is_fraud = reconstruction_error >= best_threshold
+
+    # ── Registrar métricas ──
+    if is_fraud:
+        fraud_counter.inc()
+    else:
+        normal_counter.inc()
+    reconstruction_error_gauge.set(reconstruction_error)
+    prediction_latency.observe(time.time() - start)
 
     return {
         "es_fraude": bool(is_fraud),
