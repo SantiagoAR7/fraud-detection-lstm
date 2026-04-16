@@ -45,16 +45,24 @@ class FraudAutoencoder(nn.Module):
 # ── Cargar modelo y artefactos ──
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-model = FraudAutoencoder(input_dim=30)
-model.load_state_dict(torch.load(
-    os.path.join(BASE_DIR, "data", "fraud_autoencoder.pt"),
-    map_location=torch.device('cpu')
-))
-model.eval()
+model = None
+scaler = None
+feature_cols = None
+best_threshold = None
 
-scaler = joblib.load(os.path.join(BASE_DIR, "data", "scaler.pkl"))
-feature_cols = joblib.load(os.path.join(BASE_DIR, "data", "feature_cols.pkl"))
-best_threshold = joblib.load(os.path.join(BASE_DIR, "data", "best_threshold.pkl"))
+def load_artifacts():
+    global model, scaler, feature_cols, best_threshold
+    if model is None:
+        m = FraudAutoencoder(input_dim=30)
+        m.load_state_dict(torch.load(
+            os.path.join(BASE_DIR, "data", "fraud_autoencoder.pt"),
+            map_location=torch.device('cpu')
+        ))
+        m.eval()
+        model = m
+        scaler = joblib.load(os.path.join(BASE_DIR, "data", "scaler.pkl"))
+        feature_cols = joblib.load(os.path.join(BASE_DIR, "data", "feature_cols.pkl"))
+        best_threshold = joblib.load(os.path.join(BASE_DIR, "data", "best_threshold.pkl"))
 
 # ── Schema de entrada ──
 class TransactionData(BaseModel):
@@ -69,14 +77,17 @@ class TransactionData(BaseModel):
 
 @app.get("/")
 def root():
+    load_artifacts()
     return {"mensaje": "Fraud Detection API activa ✅", "umbral": best_threshold}
 
 @app.get("/health")
 def health():
+    load_artifacts()
     return {"status": "ok", "model": "autoencoder", "version": "1.0"}
 
 @app.post("/predecir")
 def predecir(transaction: TransactionData):
+    load_artifacts()
     start = time.time()
     data = transaction.dict()
 
