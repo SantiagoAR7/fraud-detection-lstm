@@ -1,57 +1,22 @@
-import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-import sys
-import os
-import numpy as np
+import main as main_module
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'api'))
-
-# Mock los artefactos ANTES de importar main
-mock_model = MagicMock()
-mock_model.return_value = MagicMock()
-
-with patch('torch.load', return_value={}), \
-     patch('joblib.load', return_value=MagicMock()), \
-     patch('torch.nn.Module.load_state_dict', return_value=None):
-    from main import app
-
-client = TestClient(app)
+client = TestClient(main_module.app)
 
 
 def test_health_endpoint():
-    """API debe responder en /health"""
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
 
 
 def test_predecir_input_invalido():
-    """Debe fallar si faltan campos requeridos"""
     payload = {"V1": 0.0, "Amount": 100.0}
     response = client.post("/predecir", json=payload)
     assert response.status_code == 422
 
 
-def test_predecir_con_mock():
-    """El endpoint /predecir retorna estructura correcta con modelo mockeado"""
-    import torch
-    import api.main as main_module
-
-    fake_tensor = MagicMock()
-    fake_tensor.numpy.return_value = np.zeros((1, 30), dtype=np.float32)
-
-    mock_m = MagicMock()
-    mock_m.return_value = fake_tensor
-
-    mock_scaler = MagicMock()
-    mock_scaler.transform.return_value = [[0.5]]
-
-    main_module.model = mock_m
-    main_module.scaler = mock_scaler
-    main_module.feature_cols = [f'V{i}' for i in range(1, 29)] + ['Amount', 'Time']
-    main_module.best_threshold = 3.9326
-
+def test_predecir_estructura_respuesta():
     payload = {
         "V1": 0.0, "V2": 0.0, "V3": 0.0, "V4": 0.0, "V5": 0.0,
         "V6": 0.0, "V7": 0.0, "V8": 0.0, "V9": 0.0, "V10": 0.0,
