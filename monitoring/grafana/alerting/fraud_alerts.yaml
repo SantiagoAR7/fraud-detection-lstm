@@ -1,0 +1,78 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Fraud Detection Alerts
+    folder: Fraud Monitoring
+    interval: 1m
+    rules:
+
+      - uid: alert-reconstruction-error
+        title: "Data Drift — error de reconstrucción alto"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: avg_over_time(reconstruction_error_last[5m])
+              intervalMs: 60000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [5.0]
+                  query:
+                    params: [A]
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Error de reconstrucción promedio supera umbral"
+          description: "El error promedio en los últimos 5 min es mayor a 5.0 — posible data drift."
+        labels:
+          severity: warning
+
+      - uid: alert-fraud-rate-spike
+        title: "Spike de fraudes detectados"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: rate(fraud_detections_total[5m]) * 300
+              intervalMs: 60000
+              maxDataPoints: 43200
+          - refId: C
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [10]
+                  query:
+                    params: [A]
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: "Tasa de fraudes inusualmente alta"
+          description: "Se detectaron más de 10 fraudes en los últimos 5 minutos."
+        labels:
+          severity: critical
