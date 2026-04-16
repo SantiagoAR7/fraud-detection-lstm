@@ -40,3 +40,219 @@ Este proyecto construye un sistema completo de detección de anomalías que iden
 ---
 
 ## 🏗️ Arquitectura del sistema
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│   Raw Data      │────▶│   Autoencoder    │────▶│   FastAPI REST      │
+│ (284K transacc) │     │   PyTorch        │     │   /predecir POST    │
+└─────────────────┘     │   AUC-ROC 0.96   │     └──────────┬──────────┘
+└──────────────────┘                │
+▼
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│  Streamlit App  │     │    Grafana        │◀────│    Prometheus       │
+│  Demo en vivo   │     │    Alertas auto   │     │    /metrics         │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
+▲
+│
+┌───────┴────────┐
+│  Apache Airflow │
+│  Re-entrenamiento│
+│  @weekly        │
+└────────────────┘
+▲
+┌───────┴────────┐
+│  GitHub Actions │
+│  CI/CD en push  │
+└────────────────┘
+
+---
+
+## 📊 Resultados del modelo
+
+| Métrica | LSTM (intento 1) | Autoencoder (final) |
+|---------|-----------------|---------------------|
+| **AUC-ROC** | 0.54 | **0.9643** |
+| F1-Score (Fraude) | 0.12 | **0.75** |
+| Precision (Fraude) | 0.17 | **0.80** |
+| Recall (Fraude) | 0.09 | **0.71** |
+
+> **Decisión técnica documentada:** Se intentó primero una arquitectura LSTM con ventanas deslizantes, pero el dataset no tiene ID de tarjeta — las secuencias mezclaban transacciones de diferentes usuarios, impidiendo que la red aprendiera patrones individuales. El Autoencoder resolvió esto al aprender la distribución global de transacciones normales, logrando AUC-ROC de 0.96 vs 0.54 del LSTM. Documentar decisiones fallidas es tan valioso como documentar éxitos.
+
+### 🔍 Cómo funciona el Autoencoder
+Transacción (30 features) → Encoder → Latente (8 dims) → Decoder → Reconstrucción
+
+En inferencia, las transacciones fraudulentas tienen un patrón diferente al aprendido → el error de reconstrucción es alto → se marca como anomalía.
+
+**Umbral óptimo:** 3.9326 (optimizado por F1-Score sobre el conjunto de test)
+
+---
+
+## 🗂️ Estructura del proyecto
+fraud-detection-lstm/
+│
+├── 📁 .github/workflows/
+│   └── ci.yml                       # CI/CD — tests automáticos en cada push
+│
+├── 📁 data/
+│   ├── creditcard.csv               # Dataset (Kaggle - 284,807 transacciones)
+│   ├── fraud_autoencoder.pt         # Modelo PyTorch serializado
+│   ├── scaler.pkl                   # StandardScaler para Amount y Time
+│   ├── best_threshold.pkl           # Umbral óptimo de detección
+│   └── retraining_log.txt           # Log de re-entrenamientos automáticos
+│
+├── 📁 notebooks/
+│   ├── 01_eda.ipynb                 # Análisis exploratorio completo
+│   └── 02_autoencoder_model.ipynb   # Entrenamiento y evaluación
+│
+├── 📁 api/
+│   └── main.py                      # FastAPI + métricas Prometheus + /health
+│
+├── 📁 tests/
+│   ├── conftest.py                  # Fixtures y mocks para CI
+│   └── test_api.py                  # Tests automatizados de la API
+│
+├── 📁 airflow/dags/
+│   └── fraud_retraining_dag.py      # Pipeline de re-entrenamiento semanal
+│
+├── 📁 monitoring/
+│   ├── prometheus.yml               # Configuración de scraping
+│   └── grafana/
+│       ├── alerting/
+│       │   └── fraud_alerts.yaml    # Alertas como código (provisioning)
+│       └── datasources/
+│           └── prometheus.yaml      # Datasource Prometheus versionado
+│
+├── 📁 docs/screenshots/             # Capturas del sistema funcionando
+├── app.py                           # Dashboard Streamlit
+├── docker-compose.yml               # Orquestación de servicios
+├── Dockerfile                       # Imagen de la API
+└── requirements.txt
+
+---
+
+## 🚀 Cómo ejecutar el proyecto
+
+### 1. Clonar el repositorio
+
+```bash
+git clone https://github.com/SantiagoAR7/fraud-detection-lstm.git
+cd fraud-detection-lstm
+```
+
+### 2. Crear entorno virtual e instalar dependencias
+
+```bash
+python3 -m venv venv_fraud
+source venv_fraud/bin/activate
+pip install -r requirements.txt
+```
+
+### 3. Descargar el dataset
+
+Descarga [Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) de Kaggle y colócalo en `data/creditcard.csv`
+
+### 4. Entrenar el modelo
+
+```bash
+jupyter lab
+# Ejecuta notebooks/01_eda.ipynb y 02_autoencoder_model.ipynb en orden
+```
+
+### 5. Levantar todos los servicios
+
+```bash
+# API de predicción
+cd api && uvicorn main:app --reload
+
+# Monitoreo (Prometheus + Grafana + Airflow)
+docker compose up
+
+# Dashboard demo
+streamlit run app.py
+```
+
+---
+
+## 🔌 Uso de la API
+
+```bash
+curl -X POST "http://127.0.0.1:8000/predecir" \
+  -H "Content-Type: application/json" \
+  -d '{"V1": -3.04, "V2": -3.15, "V3": 1.08, "Amount": 18.0, "Time": 406.0, ...}'
+```
+
+**Respuesta:**
+```json
+{
+  "es_fraude": true,
+  "error_reconstruccion": 4.2560,
+  "umbral": 3.9326,
+  "riesgo": "Alto"
+}
+```
+
+---
+
+## 📐 Decisiones técnicas
+
+**¿Por qué Autoencoder y no clasificador supervisado?**
+En fraude real, los patrones cambian constantemente. Un clasificador supervisado se vuelve obsoleto cuando aparecen nuevos tipos de fraude. El Autoencoder detecta cualquier anomalía que se desvíe del patrón normal, incluyendo fraudes nunca vistos.
+
+**¿Por qué Apache Airflow para el re-entrenamiento?**
+Airflow permite definir pipelines de ML como código, con dependencias entre tareas, reintentos automáticos y trazabilidad completa. Es el estándar de la industria para orquestación de pipelines de datos.
+
+**¿Por qué Prometheus + Grafana y no solo logs?**
+Los logs son reactivos — detectas el problema después. Las métricas son proactivas — las alertas configuradas como código (provisioning) disparan cuando el error de reconstrucción promedio sube, indicando data drift antes de que el modelo falle.
+
+**¿Por qué GitHub Actions para CI/CD?**
+Cada push a main corre los tests automáticamente y verifica que el Dockerfile existe. Los artefactos del modelo no se versionan en git — en producción se descargarían desde un artifact store (S3, MLflow) antes del build.
+
+---
+
+## 🛠️ Stack tecnológico
+
+| Capa | Tecnología | Propósito |
+|------|-----------|-----------|
+| Modelo | `PyTorch` | Autoencoder para detección de anomalías |
+| Datos | `pandas`, `scikit-learn` | Preprocesamiento |
+| API | `FastAPI`, `uvicorn` | Exposición del modelo como servicio |
+| Tests | `pytest`, `httpx` | CI automatizado |
+| Métricas | `prometheus-fastapi-instrumentator` | Exposición de métricas |
+| Monitoreo | `Prometheus`, `Grafana` | Dashboards y alertas en tiempo real |
+| Orquestación | `Apache Airflow` | Pipeline de re-entrenamiento automático |
+| CI/CD | `GitHub Actions` | Tests y verificación en cada push |
+| Containerización | `Docker`, `docker-compose` | Portabilidad e infraestructura |
+| Demo | `Streamlit` | Dashboard interactivo |
+
+---
+
+## 🗺️ Roadmap
+
+- [x] Análisis exploratorio de datos (EDA)
+- [x] Modelo LSTM — descartado por limitación del dataset (documentado)
+- [x] Autoencoder PyTorch — AUC-ROC 0.9643
+- [x] API REST con FastAPI + métricas Prometheus
+- [x] Containerización con Docker
+- [x] Pipeline de re-entrenamiento con Apache Airflow
+- [x] Monitoreo en tiempo real con Prometheus + Grafana
+- [x] Dashboard interactivo con Streamlit
+- [x] GitHub Actions — CI/CD automatizado
+- [x] Alertas automáticas en Grafana (data drift + spike de fraudes)
+
+---
+
+## 📁 Dataset
+
+**Credit Card Fraud Detection** — ULB Machine Learning Group
+Fuente: [Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
+284,807 transacciones · 30 features (V1-V28 son componentes PCA) · 492 fraudes (0.173%)
+
+---
+
+## 👤 Autor
+
+**Santiago Atehortúa Restrepo**
+Analista de Datos & Automatizaciones → ML Engineer
+[GitHub](https://github.com/SantiagoAR7) · [Proyecto Churn](https://github.com/SantiagoAR7/churn-ml-pipeline)
+
+---
+
+*Este proyecto es parte de un portafolio de ML progresivo. Ver también: [Churn Prediction Pipeline](https://github.com/SantiagoAR7/churn-ml-pipeline)*
