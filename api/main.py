@@ -71,6 +71,10 @@ class TransactionData(BaseModel):
 def root():
     return {"mensaje": "Fraud Detection API activa ✅", "umbral": best_threshold}
 
+@app.get("/health")
+def health():
+    return {"status": "ok", "model": "autoencoder", "version": "1.0"}
+
 @app.post("/predecir")
 def predecir(transaction: TransactionData):
     start = time.time()

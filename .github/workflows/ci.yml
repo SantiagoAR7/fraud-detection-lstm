@@ -1,0 +1,57 @@
+name: CI — Fraud Detection API
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install dependencies
+        run: |
+          pip install pytest httpx fastapi pydantic \
+            torch --index-url https://download.pytorch.org/whl/cpu \
+            scikit-learn joblib numpy \
+            prometheus-fastapi-instrumentator prometheus-client --quiet
+
+      - name: Run tests
+        run: pytest tests/ -v
+        env:
+          PYTHONPATH: .
+
+  docker:
+    name: Build & verify Docker image
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t fraud-detection-api .
+
+      - name: Start container
+        run: |
+          docker run -d -p 8000:8000 --name fraud-api fraud-detection-api
+          sleep 8
+
+      - name: Health check
+        run: |
+          curl --fail http://localhost:8000/health || exit 1
+
+      - name: Stop container
+        run: docker stop fraud-api
