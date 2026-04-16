@@ -20,12 +20,11 @@ jobs:
         with:
           python-version: "3.9"
 
-      - name: Install dependencies
-        run: |
-          pip install pytest httpx fastapi pydantic \
-            torch --index-url https://download.pytorch.org/whl/cpu \
-            scikit-learn joblib numpy \
-            prometheus-fastapi-instrumentator prometheus-client --quiet
+      - name: Install base dependencies
+        run: pip install pytest httpx fastapi pydantic scikit-learn joblib numpy prometheus-fastapi-instrumentator prometheus-client
+
+      - name: Install PyTorch CPU
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
 
       - name: Run tests
         run: pytest tests/ -v
@@ -50,8 +49,7 @@ jobs:
           sleep 8
 
       - name: Health check
-        run: |
-          curl --fail http://localhost:8000/health || exit 1
+        run: curl --fail http://localhost:8000/health || exit 1
 
       - name: Stop container
         run: docker stop fraud-api
