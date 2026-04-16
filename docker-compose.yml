@@ -49,6 +49,10 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin123
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_ALERTING_ENABLED=true
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_UNIFIED_ALERTING_DISABLE_JIRA_ALERTS=true
     volumes:
       - ./monitoring/grafana/alerting:/etc/grafana/provisioning/alerting
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources

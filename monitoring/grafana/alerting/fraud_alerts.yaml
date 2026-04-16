@@ -9,7 +9,7 @@ groups:
 
       - uid: alert-reconstruction-error
         title: "Data Drift — error de reconstrucción alto"
-        condition: C
+        condition: B
         data:
           - refId: A
             relativeTimeRange:
@@ -20,19 +20,27 @@ groups:
               expr: avg_over_time(reconstruction_error_last[5m])
               intervalMs: 60000
               maxDataPoints: 43200
-          - refId: C
+              refId: A
+          - refId: B
             relativeTimeRange:
               from: 300
               to: 0
             datasourceUid: __expr__
             model:
+              refId: B
               type: threshold
               conditions:
                 - evaluator:
                     type: gt
                     params: [5.0]
+                  operator:
+                    type: and
                   query:
-                    params: [A]
+                    params:
+                      - A
+                  reducer:
+                    type: last
+                    params: []
         noDataState: NoData
         execErrState: Error
         for: 2m
@@ -44,7 +52,7 @@ groups:
 
       - uid: alert-fraud-rate-spike
         title: "Spike de fraudes detectados"
-        condition: C
+        condition: B
         data:
           - refId: A
             relativeTimeRange:
@@ -55,24 +63,11 @@ groups:
               expr: rate(fraud_detections_total[5m]) * 300
               intervalMs: 60000
               maxDataPoints: 43200
-          - refId: C
+              refId: A
+          - refId: B
             relativeTimeRange:
               from: 300
               to: 0
             datasourceUid: __expr__
             model:
-              type: threshold
-              conditions:
-                - evaluator:
-                    type: gt
-                    params: [10]
-                  query:
-                    params: [A]
-        noDataState: NoData
-        execErrState: Error
-        for: 1m
-        annotations:
-          summary: "Tasa de fraudes inusualmente alta"
-          description: "Se detectaron más de 10 fraudes en los últimos 5 minutos."
-        labels:
-          severity: critical
+              refId: B
