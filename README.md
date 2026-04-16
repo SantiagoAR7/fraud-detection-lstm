@@ -40,29 +40,19 @@ Este proyecto construye un sistema completo de detección de anomalías que iden
 ---
 
 ## 🏗️ Arquitectura del sistema
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│   Raw Data      │────▶│   Autoencoder    │────▶│   FastAPI REST      │
-│ (284K transacc) │     │   PyTorch        │     │   /predecir POST    │
-└─────────────────┘     │   AUC-ROC 0.96   │     └──────────┬──────────┘
-└──────────────────┘                │
-▼
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│  Streamlit App  │     │    Grafana        │◀────│    Prometheus       │
-│  Demo en vivo   │     │    Alertas auto   │     │    /metrics         │
-└─────────────────┘     └──────────────────┘     └─────────────────────┘
-▲
-│
-┌───────┴────────┐
-│  Apache Airflow │
-│  Re-entrenamiento│
-│  @weekly        │
-└────────────────┘
-▲
-┌───────┴────────┐
-│  GitHub Actions │
-│  CI/CD en push  │
-└────────────────┘
 
+<pre>
+Raw Data (284K)  ──►  Autoencoder PyTorch  ──►  FastAPI REST /predecir
+                          AUC-ROC 0.96                │
+                                                       ▼
+Streamlit Demo   ◄──  Grafana Alertas   ◄──  Prometheus /metrics
+                              ▲
+                              │
+                       Apache Airflow (re-entrenamiento @weekly)
+                              ▲
+                              │
+                       GitHub Actions (CI/CD en cada push)
+</pre>
 ---
 
 ## 📊 Resultados del modelo
@@ -86,41 +76,35 @@ En inferencia, las transacciones fraudulentas tienen un patrón diferente al apr
 ---
 
 ## 🗂️ Estructura del proyecto
+
+```
 fraud-detection-lstm/
-│
-├── 📁 .github/workflows/
+├── .github/workflows/
 │   └── ci.yml                       # CI/CD — tests automáticos en cada push
-│
-├── 📁 data/
+├── data/
 │   ├── creditcard.csv               # Dataset (Kaggle - 284,807 transacciones)
 │   ├── fraud_autoencoder.pt         # Modelo PyTorch serializado
 │   ├── scaler.pkl                   # StandardScaler para Amount y Time
 │   ├── best_threshold.pkl           # Umbral óptimo de detección
 │   └── retraining_log.txt           # Log de re-entrenamientos automáticos
-│
-├── 📁 notebooks/
+├── notebooks/
 │   ├── 01_eda.ipynb                 # Análisis exploratorio completo
 │   └── 02_autoencoder_model.ipynb   # Entrenamiento y evaluación
-│
-├── 📁 api/
+├── api/
 │   └── main.py                      # FastAPI + métricas Prometheus + /health
-│
-├── 📁 tests/
+├── tests/
 │   ├── conftest.py                  # Fixtures y mocks para CI
 │   └── test_api.py                  # Tests automatizados de la API
-│
-├── 📁 airflow/dags/
+├── airflow/dags/
 │   └── fraud_retraining_dag.py      # Pipeline de re-entrenamiento semanal
-│
-├── 📁 monitoring/
+├── monitoring/
 │   ├── prometheus.yml               # Configuración de scraping
 │   └── grafana/
 │       ├── alerting/
 │       │   └── fraud_alerts.yaml    # Alertas como código (provisioning)
 │       └── datasources/
 │           └── prometheus.yaml      # Datasource Prometheus versionado
-│
-├── 📁 docs/screenshots/             # Capturas del sistema funcionando
+├── docs/screenshots/                # Capturas del sistema funcionando
 ├── app.py                           # Dashboard Streamlit
 ├── docker-compose.yml               # Orquestación de servicios
 ├── Dockerfile                       # Imagen de la API
